@@ -40,7 +40,10 @@ class FlvPlayer {
             Object.assign(this._config, config);
         }
 
-        if (mediaDataSource.type.toLowerCase() !== 'flv') {
+        if (mediaDataSource.type.toLowerCase() === 'segment-mp4') {
+            this.TAG = 'SegmentMP4Player';
+            this._type = 'SegmentMP4Player';
+        } else if (mediaDataSource.type.toLowerCase() !== 'flv') {
             throw new InvalidArgumentException('FlvPlayer requires an flv MediaDataSource input!');
         }
 
@@ -217,7 +220,7 @@ class FlvPlayer {
             // lazyLoad check
             if (this._config.lazyLoad && !this._config.isLive) {
                 let currentTime = this._mediaElement.currentTime;
-                if (ms.info.endDts >= (currentTime + this._config.lazyLoadMaxDuration) * 1000) {
+                if (ms.info.endDts >= (currentTime + this._config.lazyLoadMaxDuration) * ms.info.timeScale) {
                     if (this._progressChecker == null) {
                         Log.v(this.TAG, 'Maximum buffering duration exceeded, suspend transmuxing task');
                         this._suspendTransmuxer();
