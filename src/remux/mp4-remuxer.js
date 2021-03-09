@@ -487,6 +487,7 @@ class MP4Remuxer {
         info.endDts = lastDts;
         info.beginPts = firstDts;
         info.endPts = lastDts;
+        info.timeScale = this._audioMeta.timescale;
         info.originalBeginDts = mp4Samples[0].originalDts;
         info.originalEndDts = latest.originalDts + latest.duration;
         info.firstSample = new SampleInfo(mp4Samples[0].dts,
@@ -692,6 +693,7 @@ class MP4Remuxer {
         info.endDts = lastDts;
         info.beginPts = firstPts;
         info.endPts = lastPts;
+        info.timeScale = this._videoMeta.timescale;
         info.originalBeginDts = mp4Samples[0].originalDts;
         info.originalEndDts = latest.originalDts + latest.duration;
         info.firstSample = new SampleInfo(mp4Samples[0].dts,
