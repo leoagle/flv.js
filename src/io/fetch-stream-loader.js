@@ -88,7 +88,7 @@ class FetchStreamLoader extends BaseLoader {
             method: 'GET',
             headers: headers,
             mode: 'cors',
-            cache: 'default',
+            cache: 'no-cache',
             // The default policy of Fetch API in the whatwg standard
             // Safari incorrectly indicates 'no-referrer' as default policy, fuck it
             referrerPolicy: 'no-referrer-when-downgrade'
@@ -203,7 +203,7 @@ class FetchStreamLoader extends BaseLoader {
                     this._onDataArrival(chunk, byteStart, this._receivedLength);
                 }
 
-                this._pump(reader);
+                return this._pump(reader);
             }
         }).catch((e) => {
             if (e.code === 11 && Browser.msedge) {  // InvalidStateError on Microsoft Edge
