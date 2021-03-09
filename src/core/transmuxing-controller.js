@@ -21,6 +21,7 @@ import Log from '../utils/logger.js';
 import Browser from '../utils/browser.js';
 import MediaInfo from './media-info.js';
 import FLVDemuxer from '../demux/flv-demuxer.js';
+import MP4Demuxer from '../demux/mp4-demuxer.js';
 import MP4Remuxer from '../remux/mp4-remuxer.js';
 import DemuxErrors from '../demux/demux-errors.js';
 import IOController from '../io/io-controller.js';
@@ -194,7 +195,7 @@ class TransmuxingController {
             // cross-segment seeking
             let targetSegmentInfo = this._mediaInfo.segments[targetSegmentIndex];
 
-            if (targetSegmentInfo == undefined) {
+            if (targetSegmentInfo == undefined || this._demuxer.TAG == 'MP4Demuxer') {
                 // target segment hasn't been loaded. We need metadata then seek to expected time
                 this._pendingSeekTime = milliseconds;
                 this._internalAbort();
@@ -210,6 +211,7 @@ class TransmuxingController {
                 this._remuxer.insertDiscontinuity();
                 this._demuxer.resetMediaInfo();
                 this._demuxer.timestampBase = this._mediaDataSource.segments[targetSegmentIndex].timestampBase;
+                this._demuxer._mediaInfo.bitrateMap = this._bitrateMap[targetSegmentIndex];
                 this._loadSegment(targetSegmentIndex, keyframe.fileposition);
                 this._pendingResolveSeekPoint = keyframe.milliseconds;
                 this._reportSegmentMediaInfo(targetSegmentIndex);
@@ -276,6 +278,30 @@ class TransmuxingController {
             this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
 
             consumed = this._demuxer.parseChunks(data, byteStart);
+        } else if ((probeData = MP4Demuxer.probe(data)).match) {
+            // Copied from new FLVDecuxer, Always create new MP4Demuxer
+             this._demuxer = new MP4Demuxer(probeData, this._config);
+            if (!this._remuxer) {
+                this._remuxer = new MP4Remuxer(this._config);
+            }
+
+            let mds = this._mediaDataSource;
+            if (mds.duration != undefined && !isNaN(mds.duration)) {
+                this._demuxer.overridedDuration = mds.duration;
+            }
+            this._demuxer.timestampBase = mds.segments[this._currentSegmentIndex].timestampBase;
+
+            this._demuxer.onError = this._onDemuxException.bind(this);
+            this._demuxer.onMediaInfo = this._onMediaInfo.bind(this);
+
+            this._remuxer.bindDataSource(this._demuxer
+                .bindDataSource(this._ioctl
+                ));
+
+            this._remuxer.onInitSegment = this._onRemuxerInitSegmentArrival.bind(this);
+            this._remuxer.onMediaSegment = this._onRemuxerMediaSegmentArrival.bind(this);
+
+            consumed = this._demuxer.parseChunks(data, byteStart);
         } else {
             probeData = null;
             Log.e(this.TAG, 'Non-FLV, Unsupported media type!');
@@ -297,12 +323,25 @@ class TransmuxingController {
             this._mediaInfo.keyframesIndex = null;
             this._mediaInfo.segments = [];
             this._mediaInfo.segmentCount = this._mediaDataSource.segments.length;
+            this._bitrateMap = [];
             Object.setPrototypeOf(this._mediaInfo, MediaInfo.prototype);
         }
 
         let segmentInfo = Object.assign({}, mediaInfo);
+        this._bitrateMap[this._currentSegmentIndex] = mediaInfo.bitrateMap;
+        segmentInfo.bitrateMap = this._bitrateMap;
         Object.setPrototypeOf(segmentInfo, MediaInfo.prototype);
         this._mediaInfo.segments[this._currentSegmentIndex] = segmentInfo;
+        
+        //Update segment duration if accurateDuration is give (mp4)
+        if (mediaInfo.accurateDuration != undefined) {
+            let currentSegment = this._mediaDataSource.segments[this._currentSegmentIndex];
+            let deltaDuration = mediaInfo.accurateDuration - currentSegment.duration;
+            currentSegment.duration = mediaInfo.accurateDuration;
+            for (let i = this._currentSegmentIndex + 1; i < this._mediaDataSource.segments.length; i++) {
+                this._mediaDataSource.segments[i].timestampBase += deltaDuration;
+            }
+        }
 
         // notify mediaInfo update
         this._reportSegmentMediaInfo(this._currentSegmentIndex);
