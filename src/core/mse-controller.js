@@ -212,6 +212,7 @@ class MSEController {
             if (this._sourceBuffers[is.type] && !this._sourceBuffers[is.type].updating) {
                 this._doAppendSegments();
             }
+            this._emitter.emit(MSEEvents.ERROR);
         }
         if (Browser.safari && is.container === 'audio/mpeg' && is.mediaDuration > 0) {
             // 'audio/mpeg' track under Safari may cause MediaElement's duration to be NaN
